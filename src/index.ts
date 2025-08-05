@@ -12,20 +12,34 @@ const readAsync = promisify(read);
 const writeAsync = promisify(write);
 
 /**
- * Enum representing a compression algorithm used. Mimics the PMTiles specification for easier use.
+ * Enum representing a compression algorithm used.
  * 0 = unknown compression, for if you must use a different or unspecified algorithm.
  * 1 = no compression.
  * 2 = gzip
  * 3 = brotli
  * 4 = zstd
  */
-export enum Compression {
-  Unknown = 0,
-  None = 1,
-  Gzip = 2,
-  Brotli = 3,
-  Zstd = 4,
-}
+export const Compression = {
+  /** Unknown compression, for if you must use a different or unspecified algorithm. */
+  Unknown: 0,
+  /** No compression. */
+  None: 1,
+  /** Gzip compression. */
+  Gzip: 2,
+  /** Brotli compression. */
+  Brotli: 3,
+  /** Zstd compression. */
+  Zstd: 4,
+} as const;
+/**
+ * Enum representing a compression algorithm used.
+ * 0 = unknown compression, for if you must use a different or unspecified algorithm.
+ * 1 = no compression.
+ * 2 = gzip
+ * 3 = brotli
+ * 4 = zstd
+ */
+export type Compression = (typeof Compression)[keyof typeof Compression];
 
 /**
  * A Node consists of an offset and a length pointing to a node
