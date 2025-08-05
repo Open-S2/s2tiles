@@ -1,0 +1,78 @@
+{
+  "name": "s2tiles",
+  "version": "1.1.1",
+  "description": "S2Tiles is a single-file archive format for tiled data that works for both WM and S2 projections. The goal is to be a \"cloud optimized tile store\" for vector/raster/grid data.",
+  "keywords": [
+    "S2Tiles",
+    "map",
+    "tile",
+    "open",
+    "S2",
+    "spec"
+  ],
+  "type": "module",
+  "types": "./dist/index.d.ts",
+  "typescript": {
+    "main": "lib/index.ts"
+  },
+  "main": "dist/index.js",
+  "exports": {
+    ".": {
+      "require": "./dist/index.js",
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./dist/*": "./dist/*"
+  },
+  "scripts": {
+    "lint+build+test+docs": "bun run lint && bun run build && bun run test && bun run docs",
+    "lint": "eslint src test",
+    "lint:fix": "bun run lint -- --fix",
+    "prettier": "bunx prettier src test tools benchmarks --check",
+    "prettier:fix": "bunx prettier -- --write",
+    "format": "bunx prettier:fix && bun run lint:fix",
+    "build": "rm -rf dist && mkdir dist && rm -f -- tsconfig.tsbuildinfo && tsc && bun run build.ts",
+    "types:bundle": "bun run types:build && node scripts/types.mjs",
+    "prepublishOnly": "bun run lint+build+test+docs",
+    "package-check": "package-check",
+    "test:dev": "bun test --watch --coverage",
+    "test": "bun test",
+    "test:coverage": "bun run test --coverage",
+    "docs": "typedoc",
+    "dependencies": "bunx depcruise src --include-only \"^src\" --output-type dot | dot -T svg > ./assets/dependency-graph.svg"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Open-S2/s2tiles.git"
+  },
+  "author": "Craig OConnor",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/Open-S2/s2tiles/issues"
+  },
+  "files": [
+    "dist",
+    "s2tiles-spec"
+  ],
+  "homepage": "https://github.com/Open-S2/s2tiles#readme",
+  "devDependencies": {
+    "@skypack/package-check": "^0.2.2",
+    "@types/bun": "^1.2.19",
+    "@types/node": "^24.2.0",
+    "@types/pbf": "^3.0.5",
+    "@types/tmp": "^0.2.6",
+    "coveralls": "^3.1.1",
+    "eslint": "^9.32.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-jsdoc": "^52.0.2",
+    "eslint-plugin-prettier": "^5.5.3",
+    "eslint-plugin-tsdoc": "^0.4.0",
+    "prettier": "^3.6.2",
+    "s2-tilejson": "^1.13.0",
+    "tmp": "^0.2.3",
+    "typedoc": "^0.28.9",
+    "typedoc-plugin-coverage": "^4.0.1",
+    "typescript": "^5.9.2",
+    "typescript-eslint": "^8.39.0"
+  }
+}
