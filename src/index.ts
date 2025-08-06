@@ -58,7 +58,7 @@ const NODE_SIZE = 10; // [offset, length] => [6 bytes, 4 bytes]
 const DIR_SIZE = 1_365 * NODE_SIZE; // (13_650) -> 6 levels, the 6th level has both node and leaf (1+4+16+64+256+1024)*2 => (1365)+1365 => 2_730
 const METADATA_SIZE = 131_072; // 131,072 bytes is 128kB
 const ROOT_DIR_SIZE = DIR_SIZE * 6; // 27_300 * 6 = 163_800
-const ROOT_SIZE = METADATA_SIZE + ROOT_DIR_SIZE;
+const ROOT_SIZE = METADATA_SIZE + ROOT_DIR_SIZE; // 294_872
 // assuming all tiles exist for every face from 0->30 the max leafs to reach depth of 30 is 5
 // root: 6sides * 27_300bytes/dir = (163_800 bytes)
 // all leafs at 6: 1024 * 6sides * 27_300bytes/dir (0.167731 GB)
@@ -131,7 +131,7 @@ export class S2TilesStore {
       // if the metadata is empty, we failed
       throw new Error(`Failed to extrapolate ${this.path} metadata`);
     }
-    const meta_data = await decompress(data.slice(10, 10 + mL), this.compression);
+    const meta_data = await decompress(data.subarray(10, 10 + mL), this.compression);
     this.metadata = JSON.parse(this.decoder.decode(meta_data)) as Metadata;
   }
 
@@ -432,7 +432,7 @@ function _writeUInt48LE(data: Buffer, num: number, offset = 0): void {
  * @param zoom - the zoom
  * @param x - the x
  * @param y - the y
- * @returns - the path
+ * @returns - The path as a collection of offsets pointing to the tile Node in the directory
  */
 export function getS2TilePath(zoom: number, x: number, y: number): number[] {
   const { max, pow } = Math;

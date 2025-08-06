@@ -8,7 +8,13 @@ Please refer to the [change log](../CHANGELOG.md) for a documentation of changes
 
 ## 1 Abstract
 
-S2Tiles is a single-file archive format for tiled data that works for both WM and S2 projections. The goal is to be a "cloud optimized tile store" for vector/raster/grid data.
+S2Tiles is a single-file archive format for tiled data that works for both WM and S2 projections.
+The goal is three-fold:
+- 1: to be a "cloud optimized tile store" for vector/raster/grid data.
+- 2: To be as simple as possible to both understand and implement in every language.
+- 3: To allow a large level of mallability for potential future storage mechanics and for the user to implement their own metadata and store their own "data".
+
+This spec is intentionally designed as simply as possible to allow room for the user to implement their own JSON metadata and store quad-tree data in any format they like.
 
 The recommended MIME Type for S2Tiles is `application/vnd.s2tiles`.
 
@@ -16,9 +22,8 @@ The recommended MIME Type for S2Tiles is `application/vnd.s2tiles`.
 
 A S2Tiles archive consists of five main sections:
 
-1. A fixed-size 262-byte header (described in [Chapter 3](#3-header))
+1. A fixed-size 128kB header (described in [Chapter 3](#3-header))
 1. A root directory (described in [Chapter 4](#4-directories))
-1. JSON metadata (described in [Chapter 5](#5-json-metadata))
 1. Optional leaf directories (described in [Chapter 4](#4-directories))
 1. The actual tile data
 
@@ -26,230 +31,57 @@ These sections are normally in the same order as in the list above, but it is po
 The only two restrictions are that the header is at the start of the archive, and the root directory MUST be contained in the first 16,384 bytes (16 KiB) so that latency-optimized clients can retrieve the root directory in advance and ensure that it is complete.
 
 ```spec
-           Root Directory   Metadata    Leaf Directories   Tile Data
-               Length        Length          Length         Length
-          <--------------> <--------> <----------------> <--------->
-+--------+----------------+----------+------------------+-----------+
-|        |                |          |                  |           |
-| Header | Root Directory | Metadata | Leaf Directories | Tile Data |
-|        |                |          |                  |           |
-+--------+----------------+----------+------------------+-----------+
-         ^                ^          ^                  ^
-     Root Dir         Metadata   Leaf Dirs          Tile Data
-      Offset           Offset      Offset             Offset
+           Root Directory   Leaf Directories & Tile Data
+               Length
+          <--------------> <---------------------------->
++--------+----------------+------------------------------+
+|        |                |                              |
+| Header | Root Directory | Leaf Directories & Tile Data |
+|        |                |                              |
++--------+----------------+------------------------------+
+         ^                ^
+     Root Dir     Leaf & Tile Data
+      Offset           Offset
+     (131_072)        (294,872)
 ```
 
 ## 3 Header
 
-The Header has a length of 262 bytes and is always at the start of the archive. It includes everything needed to decode the rest of the S2Tiles archive properly.
+The Header is REQUIRED and has a length of 131,072 bytes (128kB) and is always at the start of the archive.
+It includes everything needed to decode and read the rest of the S2Tiles archive properly.
 
 ### 3.1 Overview
+
+The first 9 bytes are used to describe the archive with the remaining bytes being reserved for the metadata.
 
 ```spec
 Offset     00   01   02   03   04   05   06   07   08   09   0A   0B   0C   0D   0E   0F
          +----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+
-000000   |           Magic Number           |  V |        Root Directory Offset 0        |
+000000   | S  |  2 | Version | MZ | CP |  Metadata Length  | Metadata...
          +----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+
-000010   |        Root Directory Length 0        |            Metadata Offset            |
-         +----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+
-000020   |            Metadata Length            |        Leaf Directories Offset        |
-         +----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+
-000030   |        Leaf Directories Length        |            Tile Data Offset           |
-         +----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+
-000040   |            Tile Data Length           |         Num of Addressed Tiles        |
-         +----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+
-000050   |         Number of Tile Entries        |        Number of Tile Contents        |
-         +----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+
-000060   |  C | IC | TC | TT |MinZ|MaxZ|          Root Directory Offset 1           | 
-         +----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+
-000070       Root Directory Length 1        |     Root Directory Offset 2           |
-         +----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+
-000080       Root Directory Length 2        |     Root Directory Offset 3           |
-         +----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+
-000090       Root Directory Length 3        |     Root Directory Offset 4           |
-         +----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+
-0000A0       Root Directory Length 4        |     Root Directory Offset 5           |
-         +----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+
-0000B0       Root Directory Length 5        |     Leaf Directory Offset 1           |
-         +----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+
-0000C0       Leaf Directory Length 1        |     Leaf Directory Offset 2           |
-         +----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+
-0000D0       Leaf Directory Length 2        |     Leaf Directory Offset 3           |
-         +----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+
-0000E0       Leaf Directory Length 3        |     Leaf Directory Offset 4           |
-         +----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+
-0000F0       Leaf Directory Length 4        |     Leaf Directory Offset 5           |
-         +----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+
-000100       Leaf Directory Length 5        |
-         +----+----+----+----+----+----+----+
 ```
 
 ### 3.2 Fields
 
 #### Magic Number
 
-The magic number is a fixed 2-byte field whose value is always `S2` in UTF-8 encoding (`0x53 0x32`)
+The magic number is a fixed 2-byte field whose value is always `S2` in UTF-8 encoding (`0x53 0x32`) or UTF16-LE of  (`0x12883`)
 
-#### Version (V)
+#### Version
 
 The version is a fixed 1-byte field whose value is always 1 (`0x01`).
 
-#### Root Directory Offset
+#### Max Zoom (MZ)
 
-The Root Directory Offset is an 8-byte field whose value gives the offset of the first byte of the root directory. This address offset is relative to the first byte of the archive.
+The max zoom is an 8-byte field specifying the maximum zoom level of the quad-tree archive.
 
-This field is encoded as a little-endian 64-bit unsigned integer.
+To optimize the directory sizing, I found specifying the maxzoom for writing helped reduce the total size of the file by greater than 20GB for a zoom level of 14 so it was worth the complexity.
 
-#### Root Directory Length
+#### Compression (CP)
 
-The Root Directory Length is an 8-byte field specifying the number of bytes in the root directory.
+The Tile and Metadata Compression is a 1-byte field specifying the compression of all tiles.
 
-This field is encoded as a little-endian 64-bit unsigned integer.
-
-#### Metadata Offset
-
-The Metadata Offset is an 8-byte field whose value gives the offset of the first byte of the metadata. This address offset is relative to the first byte of the archive.
-
-This field is encoded as a little-endian 64-bit unsigned integer.
-
-#### Metadata Length
-
-The Metadata Length is an 8-byte field specifying the number of bytes of metadata.
-
-This field is encoded as a little-endian 64-bit unsigned integer.
-
-#### Leaf Directories Offset
-
-The Leaf Directories Offset is an 8-byte field whose value gives the offset of the first byte of the leaf directories. This address offset is relative to the first byte of the archive.
-
-This field is encoded as a little-endian 64-bit unsigned integer.
-
-#### Leaf Directories Length
-
-The Leaf Directories Length is an 8-byte field specifying the accumulated size (in bytes) of all leaf directories. A value of `0` indicates that there are no leaf directories included in this S2Tiles archive.
-
-This field is encoded as a little-endian 64-bit unsigned integer.
-
-#### Tile Data Offset
-
-The Tile Data Offset is an 8-byte field whose value gives the offset of the first byte of the tile data. This address offset is relative to the first byte of the archive.
-
-This field is encoded as a little-endian 64-bit unsigned integer.
-
-#### Tile Data Length
-
-The Tile Data Length is an 8-byte field specifying the accumulated size (in bytes) of all tiles in the tile data section.
-
-This field is encoded as a little-endian 64-bit unsigned integer.
-
-#### Number of Addressed Tiles
-
-The Number of Addressed Tiles is an 8-byte field specifying the total number of tiles in the S2Tiles archive, before RunLength Encoding.
-
-A value of `0` indicates that the number is unknown.
-
-This field is encoded as a little-endian 64-bit unsigned integer.
-
-#### Number of Tile Entries
-
-The Number of Tile Entries is an 8-byte field specifying the total number of tile entries: entries where _RunLength_ is greater than 0.
-
-A value of `0` indicates that the number is unknown.
-
-This field is encoded as a little-endian 64-bit unsigned integer.
-
-#### Number of Tile Contents
-
-The Number of Tile Contents is an 8-byte field specifying the total number of blobs in the tile data section.
-
-A value of `0` indicates that the number is unknown.
-
-This field is encoded as a little-endian 64-bit unsigned integer.
-
-#### Clustered (C)
-
-Clustered is a 1-byte field specifying if the data of the individual tiles in the data section is ordered by their TileID (clustered) or not (not clustered).
-Therefore, Clustered means that:
-
-* offsets are either contiguous with the previous offset+length, or refer to a lesser offset when writing with deduplication.
-* the first tile entry in the directory has offset 0.
-
-The field can have one of the following values:
-
-| Value  | Meaning       |
-| :----- | :------------ |
-| `0x00` | Not clustered |
-| `0x01` | Clustered     |
-
-#### Internal Compression (IC)
-
-> NOTE:
-> This feature is **deprecated** in this spec. IC MUST always be `0x01` (None). Kept for compatibility purposes, but the s2tiles parsers should fail if IC is not `0x01` with pmtiles data.
-
-The Internal Compression is a 1-byte field specifying the compression of the root directory, metadata, and all leaf directories.
-
-The encoding of this field is described in [Chapter 3.3](#33-compression).
-
-#### Tile Compression (TC)
-
-The Tile Compression is a 1-byte field specifying the compression of all tiles.
-
-The encoding of this field is described in [Chapter 3.3](#33-compression).
-
-#### Tile Type (TT)
-
-The Tile Type is a 1-byte field specifying the type of tiles.
-
-The field can have one of the following values:
-
-| Value  | Meaning            |
-| :----- | :----------------- |
-| `0x00` | Unknown / Other    |
-| `0x01` | Vector Tile        |
-| `0x02` | PNG                |
-| `0x03` | JPEG               |
-| `0x04` | WebP               |
-| `0x05` | AVIF               |
-
-#### Min Zoom (MinZ)
-
-The Min Zoom is a 1-byte field specifying the minimum zoom of the tiles.
-
-This field is encoded as an 8-bit unsigned integer.
-
-#### Max Zoom (MaxZ)
-
-The Max Zoom is a 1-byte field specifying the maximum zoom of the tiles. It must be greater than or equal to the min zoom.
-
-This field is encoded as an 8-bit unsigned integer.
-
-#### Min Position
-
-The Min Position is an 8-byte field that includes the minimum latitude and minimum longitude of the bounds.
-
-The encoding of this field is described in [Chapter 3.4](#34-position).
-
-#### Max Position
-
-The Max Position is an 8-byte field including the maximum latitude and maximum longitude of the bounds.
-
-The encoding of this field is described in [Chapter 3.4](#34-position).
-
-#### Center Zoom (CZ)
-
-The Center Zoom is a 1-byte field specifying the center zoom (LOD) of the tiles. A reader MAY use this as the initial zoom when displaying tiles from the S2Tiles archive.
-
-This field is encoded as an 8-bit unsigned integer.
-
-#### Center Position
-
-The Center Position is an 8-byte field that includes the latitude and longitude of the center position. A reader MAY use this as the initial center position when displaying tiles from the S2Tiles archive.
-
-The encoding of this field is described in [Chapter 3.4](#34-position).
-
-### 3.3 Compression
-
-Compression is an enum with the following values:
+The compression enum is as follows:
 
 | Value  | Meaning |
 | :----- | :------ |
@@ -259,250 +91,187 @@ Compression is an enum with the following values:
 | `0x03` | brotli  |
 | `0x04` | zstd    |
 
-### 3.4 Position
+A usable Typescript example:
 
-A Position is encoded into 8 bytes. Bytes 0 through 3 (the first 4 bytes) represent the longitude, and bytes 4 through 7 (the last 4 bytes) represent the latitude.
+```typescript
+enum Compression {
+    /** Unknown compression, for if you must use a different or unspecified algorithm. */
+    Unknown: 0,
+    /** No compression. */
+    None: 1,
+    /** Gzip compression. */
+    Gzip: 2,
+    /** Brotli compression. */
+    Brotli: 3,
+    /** Zstd compression. */
+    Zstd: 4,
+}
+```
 
-#### Encoding
+#### Metadata Length
 
-To encode a latitude or a longitude into 4 bytes, use the following method:
+The Metadata Length is an 4-byte field specifying the number of bytes of metadata.
 
-1. Multiply the value by 10,000,000.
-1. Convert the result into a little-endian 32-bit signed integer.
+This field is encoded as a little-endian 32-bit unsigned integer.
 
-#### Decoding
+#### Metadata
 
-To decode a latitude or a longitude from 4 bytes, use the following method:
+The metadata is a JSON object describing how to read the tile data.
 
-1. Read bytes as a little-endian 32-bit signed integer.
-1. Divide the read value by 10,000,000.
+It is RECOMMENDED to use the [S2 TileJSON 1.0](https://github.com/Open-S2/s2-tilejson/tree/master/s2-tilejson-spec/1.0.0) spec for this purpose.
+
+The S2 TileJSON 1.0 spec describes how to read/parse & render the tiles.
 
 ## 4 Directories
 
-A directory is simply a list of entries. Each entry describes either where a specific tile can be found in the _tile data section_ or where a leaf directory can be found in the _leaf directories section_.  
+### 4.1 Design
 
-The number of entries in the root directory and in the leaf directories is left to the implementation and can vary depending on what the writer has optimized for (cost, bandwidth, latency, etc.).
-However, the size of the header plus the compressed size of the root directory MUST NOT exceed 16384 bytes to allow latency-optimized clients to retrieve the root directory in its entirety. Therefore, the **maximum compressed size of the root directory is 16257 bytes** (16384 bytes - 262 bytes). A sophisticated writer might need several attempts to optimize this.
+This system mimics a **prefix tree (trie)** specifically to benefit the quad-tree structure that Tile data is shaped into.
 
-The order of leaf directories SHOULD be ascending by starting TileID.
+Data is stored inside a structured binary format made of directories, nodes, and leaves.
 
-It is discouraged to create an archive with more than one level of leaf directories. If you are implementing a writer and discover this need, please open an issue.
+This storage is hierarchical and allows fast lookup of tiles based on (face, zoom, x, y) coordinates.
 
-### 4.1 Directory Entries
+A directory is a binary blob composed of multiple entries.
 
-Each directory entry consists of the following properties:
+A directory is MUST be of size 13,650 kB containg 6 levels.
 
-* TileID
-* Offset
-* Length
-* RunLength
+The directory is shaped as a 6-level flat quad-tree index.
 
-#### TileID
+You can visualize it as: 1->4->16->64->256->1024.
 
-Specifies the ID of the tile or the first tile in the leaf directory.
+The first 5 levels are Nodes, and the last level is by default a Leaf but will be a Node if the level is equal to the maxzoom.
 
-The TileID corresponds to a cumulative position on the series of [Hilbert curves](https://wikipedia.org/wiki/Hilbert_curve) starting at zoom level 0.
+Each entry (10 bytes) represents either a node or a leaf:
+- 6 bytes = offset (where the node/leaf lives in the file)
+- 4 bytes = length (how much data to read from that offset)
 
-|Z|X|Y|TileID|
-|--:|--:|--:|--:|
-|0|0|0|0|
-|1|0|0|1|
-|1|0|1|2|
-|1|1|1|3|
-|1|1|0|4|
-|2|0|0|5|
-|...|...|...|...|
-|12|3423|1763|19078479|
+A **Node** Points to a tile’s actual data (e.g. a compressed MVT or protobuf).
 
-#### Offset
+A **Leaf** Points to another directory, which contains more nodes or leaves.
 
-Specifies the offset of the first byte of the tile or leaf directory. This address offset is relative to the first byte of the _tile data section_ for tile entries and relative to the first byte of the _leaf directories section_ for leaf directory entries.
+A 6-byte unsigned integer (uint48) has a maximum value of `281,474,976,710,655` which is enough for 281 TB of data.
 
-#### Length
+### 4.2 Root Directory
 
-Specifies the number of bytes of this tile or leaf directory. This size always indicates the compressed size, if the tile or leaf directory is compressed. The length MUST be greater than 0.
+There are 6 root directories, one for each S2 face. If the projection is WM, the 0th face is the world.
 
-#### RunLength
+All 6 root directories are stored at offset 131,072 in the archive and uses a total of 163,800 bytes regardless of the projection.
 
-Specifies the number of tiles for which this entry is valid. A run length of `0` means that this entry is for a leaf directory and not for a tile.
+### 4.3 Walking the Tree
 
-#### Examples
+To keep it as simple as possible, a flat quadtree indexing scheme is used for each directory.
 
-|TileID|Offset|Length|RunLength|Description|
-|--:|--:|--:|--:|:--|
-|`5`|`1337`|`42`|`1`|Tile 5 is located at bytes 1337–1378 of the _tile data section_.|
-|`5`|`1337`|`42`|`3`|Tiles 5, 6, and 7 are located at bytes 1337–1378 of the _tile data section_.|
-|`5`|`1337`|`42`|`0`|A leaf directory whose first tile has an ID of 5 is located at byte 1337–1378 of the _leaf directories section_.|
+Let’s say you want to find a tile at (face, zoom, x, y):
 
-### 4.2 Encoding
+**Step 1**: Compute the Path
+1. Use getPath(zoom, x, y) to compute a flat index path to follow the tree.
+1. Each level of zoom breaks the tile space into a grid.
+1. getPath reduces (zoom, x, y) into a list of numeric offsets into directories.
+1. These offsets represent where in a directory we expect to find the next entry.
 
-A directory can only be encoded in its entirety. It is not possible to encode a single directory entry by itself.
+**Step 2**: Walk the Directory Tree
+1. Start at the root directory for the given face.
+1. For each index in the path:
+    1. Read the 10-byte entry at index * 10:
+    1. Extract the offset and length.
+    1. If offset === 0 or length === 0: tile does not exist.
+    1. If this is the last entry in the path:
+        1. This is a node, it points to the tile data.
+    1. Otherwise:
+        1. This is a leaf, it points to the next-level directory.
+        1. Fetch that directory (cache it), and continue walking.
 
-[Appendix A.1](#a1-encode-a-directory) includes a pseudocode implementation of encoding a directory.
+**Step 3**: Retrieve the Tile
+1. Once you reach a node (the last entry), use its offset and length to extract raw tile bytes.
+1. Decompress it using the format specified in the header metadata.
 
-An encoded directory consists of five parts in the following order:
+Pseudocode with complementary Typescript and Rust code are as followed to visualize the process.
+The list of offsets is called the **path** (the returned value of `GetTilePath`).
 
-1. The number of entries contained in the directory (MUST be greater than 0)
-1. TileIDs of all entries
-1. RunLengths of all entries
-1. Lengths of all entries
-1. Offsets of all entries
-
-#### Number of entries
-
-The number of entries included in this directory.
-
-This field is encoded as a little-endian [variable-width integer](https://protobuf.dev/programming-guides/encoding/#varints).
-
-#### TileIDs
-
-The TileIDs are delta-encoded, i.e., the number to be written is the difference to the last TileID.
-
-For example, the TileIDs `5`, `42`, and `69` would be encoded as `5` (_5 - 0_), `37` (_42 - 5_), and `27` (_69 - 42_).
-
-Each delta-encoded TileID is encoded as a little-endian [variable-width integer](https://protobuf.dev/programming-guides/encoding/#varints).
-
-#### RunLengths
-
-The RunLengths are simply encoded as is, each as a little-endian [variable-width integer](https://protobuf.dev/programming-guides/encoding/#varints).
-
-#### Lengths
-
-The lengths are simply encoded as is, each as a little-endian [variable-width integer](https://protobuf.dev/programming-guides/encoding/#varints). Each length MUST be greater than 0.
-
-#### Offsets
-
-Offsets are encoded either as `Offset + 1` or `0`, if they are equal to the sum of offset and length of the previous entry (tile blobs are contiguous).
-
-Each offset is encoded as a little-endian [variable-width integer](https://protobuf.dev/programming-guides/encoding/#varints).
-
-#### Compression
-
-After encoding, each directory is compressed according to the internal compression field of the header. Leaf directories are compressed individually and not as a whole section.
-
-### 4.3 Decoding
-
-Decoding a directory works similarly to encoding, but in reverse. [Appendix A.2](#a2-decode-a-directory) includes a pseudocode implementation of decoding a directory. The basic steps are the following:
-
-1. Decompress the data according to the internal compression.
-1. Read a [variable-width integer](https://protobuf.dev/programming-guides/encoding/#varints) indicating how many entries are included in the directory (let's call this `n`).
-1. Read `n` number of [variable-width integers](https://protobuf.dev/programming-guides/encoding/#varints), which are the delta-encoded TileIDs of all entries. _¹_
-1. Read `n` number of [variable-width integers](https://protobuf.dev/programming-guides/encoding/#varints), which are the RunLengths of all entries.
-1. Read `n` number of [variable-width integers](https://protobuf.dev/programming-guides/encoding/#varints), which are the Lengths of all entries.
-1. Read `n` number of [variable-width integers](https://protobuf.dev/programming-guides/encoding/#varints), which are the Offsets of all entries. _¹_
-
-_¹ Please refer to [Section 4.2](#42-encoding) for details on how Tile ID and Offset are encoded._
-
-## 5 JSON Metadata
-
-The metadata section MUST contain a valid JSON object encoded in UTF-8, which MAY include additional metadata related to the tileset that is not already covered in the header section.
-
-If the [Tile Type](#tile-type-tt) in the header has a value of _Vector Tile_, the object MUST contain a key of `vector_layers` as described in the [S2 TileJSON 1.0 specification](https://github.com/Open-S2/s2-tilejson/tree/master/s2-tilejson-spec/1.0.0).
-
-Additionally, this specification defines the following keys, which MAY be included in the object:
-
-|Key|Description|Type|
-|--:|--|--|
-|`name`|A name describing the tileset|string|
-|`description`|A text description of the tileset|string|
-|`attribution`|An attribution to be displayed when the map is shown to a user. Implementations MAY decide to treat this as HTML or literal text. |string|
-|`type`|The type of the tileset |a string with a value of either `overlay` or `baselayer`|
-|`version`|The version number of the tileset|a string containing a valid version according to [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html) |
-
----
-
-## A Pseudocode
-
-### A.1 Encode a directory
-
-#### Encode Functions
-
-```spec
-write_varint(x, y) = write 'y' as a little-endian variable-width integer to 'x'
-compress(x) = compress 'x' according to internal compression
-```
-
-#### Encode Pseudocode
-
-```rs
-entries = list of entries in this directory
-buffer = the output byte-buffer
-
-last_id = 0
-for entry in entries {
-    write_varint(buffer, entry.tile_id - last_id)
-    last_id = entry.tile_id
-}
-
-for entry in entries {
-    write_varint(buffer, entry.run_length)
-}
-
-for entry in entries {
-    write_varint(buffer, entry.length)
-}
-
-next_byte = 0
-for (index, entry) in entries {
-    if index > 0 && entry.offset == next_byte {
-        write_varint(buffer, 0)
-    } else {
-        write_varint(buffer, entry.offset + 1)
-    }
+```pseudocode
+PROCEDURE GetTilePath(zoom: INTEGER, x: INTEGER, y: INTEGER) RETURNS LIST OF INTEGER
+    DECLARE path AS LIST OF TUPLES (INTEGER, INTEGER, INTEGER)
     
-    next_byte = entry.offset + entry.length
-}
+    WHILE zoom >= 5 DO
+        APPEND (5, x MOD 32, y MOD 32) TO path
+        x ← x DIV 32
+        y ← y DIV 32
+        zoom ← MAX(zoom - 5, 0)
+    END WHILE
 
-compress(buffer)
+    APPEND (zoom, x, y) TO path
+
+    DECLARE result AS EMPTY LIST
+
+    FOR EACH (z, i, j) IN path DO
+        val ← j × (2 ^ z) + i
+        tempZoom ← z
+        WHILE tempZoom ≠ 0 DO
+            tempZoom ← tempZoom - 1
+            val ← val + (2 ^ tempZoom) ^ 2
+        END WHILE
+        APPEND val TO result
+    END FOR
+
+    RETURN result
+END PROCEDURE
 ```
 
-### A.2 Decode a directory
-
-#### Decode Functions
-
-```spec
-read_var_int(x) = read little-endian variable-width integer from 'x'
-decompress(x) = decompress 'x' according to internal compression
+```typescript
+/**
+ * Get the path to a tile
+ * @param zoom - the zoom
+ * @param x - the x
+ * @param y - the y
+ * @returns - The path as a collection of offsets pointing to the tile Node in the directory
+ */
+export function getTilePath(zoom: number, x: number, y: number): number[] {
+  const { max, pow } = Math;
+  const path: Array<[number, number, number]> = [];
+  while (zoom >= 5) {
+    path.push([5, x & 31, y & 31]);
+    x >>= 5;
+    y >>= 5;
+    zoom = max(zoom - 5, 0);
+  }
+  path.push([zoom, x, y]);
+  return path.map(([zoom, x, y]) => {
+    let val = 0;
+    val += y * (1 << zoom) + x;
+    while (zoom-- !== 0) val += pow(1 << zoom, 2);
+    return val;
+  });
+}
 ```
 
-#### Decode Pseudocode
+```rust
+/// Get the path to a tile
+///
+/// ## Parameters
+/// - `zoom`: the zoom
+/// - `x`: the x
+/// - `y`: the y
+///
+/// ## Returns
+/// The path as a collection of offsets pointing to the tile Node in the directory
+pub fn get_tile_path(mut zoom: u8, mut x: u32, mut y: u32) -> Vec<u64> {
+    let mut path = vec![];
 
-```spec
-input_buffer = the input byte-buffer
-
-buffer = decompress(input_buffer)
-
-num_entries = read_varint(buffer)
-
-entries = empty list of entries
-
-last_id = 0
-for i in num_entries {
-    value = read_varint(buffer)
-    last_id = last_id + value
-
-    entries[i] = Entry { tile_id: last_id }
-}
-
-for i in num_entries {
-    entries[i].run_length = read_varint(buffer)
-}
-
-for i in num_entries {
-    entries[i].length = read_varint(buffer)
-}
-
-for i in num_entries {
-    value = read_varint(buffer)
-
-    if value == 0 && i > 0 {
-        // offset = 0 -> entry is directly after previous entry
-        prev_entry = entries[i - 1];
-
-        entries[i].offset = prev_entry.offset + prev_entry.length;
-    } else {
-        entries[i].offset = value - 1;
+    while zoom >= 5 {
+        path.push((5, x & 31, y & 31));
+        x >>= 5;
+        y >>= 5;
+        zoom = zoom.saturating_sub(5);
     }
-}
+    path.push((zoom, x, y));
 
+    path.into_iter()
+        .map(|(zoom, x, y)| {
+            let val = (y as u64) * ((1 << zoom) as u64) + (x as u64);
+            let sum: u64 = (0..zoom).map(|z| (1 << z) * (1 << z)).sum();
+            val + sum
+        })
+        .collect()
+}
 ```
