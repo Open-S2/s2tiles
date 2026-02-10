@@ -217,7 +217,12 @@ export class S2TilesStore {
    * @param y - the tile Y coordinate
    * @param data - the tile data to store
    */
-  async writeTileWM(zoom: number, x: number, y: number, data: Uint8Array): Promise<void> {
+  async writeTileWM(
+    zoom: number,
+    x: number,
+    y: number,
+    data: Uint8Array<ArrayBuffer>,
+  ): Promise<void> {
     await this.putTile(0, zoom, x, y, data);
   }
 
@@ -234,7 +239,7 @@ export class S2TilesStore {
     zoom: number,
     x: number,
     y: number,
-    data: Uint8Array,
+    data: Uint8Array<ArrayBuffer>,
   ): Promise<void> {
     await this.putTile(face, zoom, x, y, data);
   }
@@ -273,7 +278,13 @@ export class S2TilesStore {
    * @param y - the tile Y coordinate
    * @param data - the tile data to store
    */
-  async putTile(face: Face, zoom: number, x: number, y: number, data: Uint8Array): Promise<void> {
+  async putTile(
+    face: Face,
+    zoom: number,
+    x: number,
+    y: number,
+    data: Uint8Array<ArrayBuffer>,
+  ): Promise<void> {
     const length = data.byteLength;
     // first create node, setting offset
     const node: Node = [this.offset, length];
@@ -473,7 +484,10 @@ async function decompress(data: Uint8Array, compression: Compression): Promise<U
  * @param compression - the compression type
  * @returns - the compressed data
  */
-async function compress(data: Uint8Array, compression: Compression): Promise<Uint8Array> {
+async function compress(
+  data: Uint8Array<ArrayBuffer>,
+  compression: Compression,
+): Promise<Uint8Array<ArrayBuffer>> {
   if (compression === Compression.None) return data;
   else if (compression === Compression.Gzip) return new Uint8Array((await gzipAsync(data)).buffer);
   else if (compression === Compression.Brotli)

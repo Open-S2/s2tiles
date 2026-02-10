@@ -4,8 +4,8 @@ A specification for encoding tiled vector data.
 
 ## Implementations
 
-* [s2tiles](https://github.com/Open-S2/s2tiles) (Typescript - example guide using the FS and tests)
-* [gis-tools](https://github.com/Open-S2/gis-tools) (Rust and Typescript for both local and browser use)
+- [s2tiles](https://github.com/Open-S2/s2tiles) (Typescript - example guide using the FS and tests)
+- [gis-tools](https://github.com/Open-S2/gis-tools) (Rust and Typescript for both local and browser use)
 
 ## Contributing
 
@@ -13,7 +13,7 @@ If you are interested in contributing please refer to the [CONTRIBUTING.md](CONT
 
 ## Authors
 
-* Craig O'Connor
+- Craig O'Connor
 
 ## License
 

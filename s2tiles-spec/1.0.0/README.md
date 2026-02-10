@@ -10,6 +10,7 @@ Please refer to the [change log](../CHANGELOG.md) for a documentation of changes
 
 S2Tiles is a single-file archive format for tiled data that works for both WM and S2 projections.
 The goal is three-fold:
+
 - 1: to be a "cloud optimized tile store" for vector/raster/grid data.
 - 2: To be as simple as possible to both understand and implement in every language.
 - 3: To allow a large level of mallability for potential future storage mechanics and for the user to implement their own metadata and store their own "data".
@@ -65,7 +66,7 @@ Offset     00   01   02   03   04   05   06   07   08   09   0A   0B   0C   0D  
 
 #### Magic Number
 
-The magic number is a fixed 2-byte field whose value is always `S2` in UTF-8 encoding (`0x53 0x32`) or UTF16-LE of  (`0x12883`)
+The magic number is a fixed 2-byte field whose value is always `S2` in UTF-8 encoding (`0x53 0x32`) or UTF16-LE of (`0x12883`)
 
 #### Version
 
@@ -143,6 +144,7 @@ You can visualize it as: 1->4->16->64->256->1024.
 The first 5 levels are Nodes, and the last level is by default a Leaf but will be a Node if the level is equal to the maxzoom.
 
 Each entry (10 bytes) represents either a node or a leaf:
+
 - 6 bytes = offset (where the node/leaf lives in the file)
 - 4 bytes = length (how much data to read from that offset)
 
@@ -165,24 +167,27 @@ To keep it as simple as possible, a flat quadtree indexing scheme is used for ea
 Let’s say you want to find a tile at (face, zoom, x, y):
 
 **Step 1**: Compute the Path
+
 1. Use getPath(zoom, x, y) to compute a flat index path to follow the tree.
 1. Each level of zoom breaks the tile space into a grid.
 1. getPath reduces (zoom, x, y) into a list of numeric offsets into directories.
 1. These offsets represent where in a directory we expect to find the next entry.
 
 **Step 2**: Walk the Directory Tree
+
 1. Start at the root directory for the given face.
 1. For each index in the path:
-    1. Read the 10-byte entry at index * 10:
-    1. Extract the offset and length.
-    1. If offset === 0 or length === 0: tile does not exist.
-    1. If this is the last entry in the path:
-        1. This is a node, it points to the tile data.
-    1. Otherwise:
-        1. This is a leaf, it points to the next-level directory.
-        1. Fetch that directory (cache it), and continue walking.
+   1. Read the 10-byte entry at index \* 10:
+   1. Extract the offset and length.
+   1. If offset === 0 or length === 0: tile does not exist.
+   1. If this is the last entry in the path:
+      1. This is a node, it points to the tile data.
+   1. Otherwise:
+      1. This is a leaf, it points to the next-level directory.
+      1. Fetch that directory (cache it), and continue walking.
 
 **Step 3**: Retrieve the Tile
+
 1. Once you reach a node (the last entry), use its offset and length to extract raw tile bytes.
 1. Decompress it using the format specified in the header metadata.
 
@@ -192,7 +197,7 @@ The list of offsets is called the **path** (the returned value of `GetTilePath`)
 ```pseudocode
 PROCEDURE GetTilePath(zoom: INTEGER, x: INTEGER, y: INTEGER) RETURNS LIST OF INTEGER
     DECLARE path AS LIST OF TUPLES (INTEGER, INTEGER, INTEGER)
-    
+
     WHILE zoom >= 5 DO
         APPEND (5, x MOD 32, y MOD 32) TO path
         x ← x DIV 32
