@@ -43,7 +43,7 @@ The only two restrictions are that the header is at the start of the archive, an
          ^                ^
      Root Dir     Leaf & Tile Data
       Offset           Offset
-     (131_072)        (294,872)
+     (131_072)        (322_172)
 ```
 
 ## 3 Header
@@ -156,9 +156,9 @@ A 6-byte unsigned integer (uint48) has a maximum value of `281,474,976,710,655` 
 
 ### 4.2 Root Directory
 
-There are 6 root directories, one for each S2 face. If the projection is WM, the 0th face is the world.
+There are 7 root directories. The first 6 are for each S2 face and the 7th face is for the WM projection.
 
-All 6 root directories are stored at offset 131,072 in the archive and uses a total of 163,800 bytes regardless of the projection.
+All 7 root directories are stored at offset 131,072 in the archive and uses a total of 191,100 bytes.
 
 ### 4.3 Walking the Tree
 

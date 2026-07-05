@@ -2,7 +2,8 @@ import { promisify } from 'util';
 import { brotliCompress, brotliDecompress, gunzip, gzip } from 'zlib';
 import { existsSync, openSync, read, write, writeSync } from 'fs';
 
-import type { Face, Metadata } from 's2-tilejson';
+import type { Face } from 's2json-spec';
+import type { Metadata } from 's2-tilejson';
 
 const gunzipAsync = promisify(gunzip);
 const brotliDecompressAsync = promisify(brotliDecompress);
@@ -56,13 +57,13 @@ type Directory = [offset: number, length: number];
 
 const NODE_SIZE = 10; // [offset, length] => [6 bytes, 4 bytes]
 const DIR_SIZE = 1_365 * NODE_SIZE; // (13_650) -> 6 levels, the 6th level has both node and leaf (1+4+16+64+256+1024)*2 => (1365)+1365 => 2_730
-const METADATA_SIZE = 131_072; // 131,072 bytes is 128kB
-const ROOT_DIR_SIZE = DIR_SIZE * 6; // 27_300 * 6 = 163_800
-const ROOT_SIZE = METADATA_SIZE + ROOT_DIR_SIZE; // 294_872
+const METADATA_SIZE = 131_072; // 131,072 bytes is 128kB. It is assumed the map metadata AND the S2Tile format metadata is less than 128kB.
+const ROOT_DIR_SIZE = DIR_SIZE * 7; // 27_300 * 7 = 191_100
+const ROOT_SIZE = METADATA_SIZE + ROOT_DIR_SIZE; // 131_072 + 191_100 = 322_172
 // assuming all tiles exist for every face from 0->30 the max leafs to reach depth of 30 is 5
-// root: 6sides * 27_300bytes/dir = (163_800 bytes)
-// all leafs at 6: 1024 * 6sides * 27_300bytes/dir (0.167731 GB)
-// al leafs at 12: 524_288 * 6sides * 27_300bytes/dir (85.8783744 GB) - obviously most of this is water
+// root: 7sides * 27_300bytes/dir = (191_100 bytes)
+// all leafs at 6 (only S2): 1024 * 6sides * 27_300bytes/dir (0.167731 GB)
+// al leafs at 12 (only S2): 524_288 * 6sides * 27_300bytes/dir (85.8783744 GB) - obviously most of this is water
 
 /**
  * # S2 Tiles Reader
@@ -143,7 +144,7 @@ export class S2TilesStore {
    * @returns - true if the tile exists in the archive
    */
   async hasTileWM(zoom: number, x: number, y: number): Promise<boolean> {
-    return await this.hasTileS2(0, zoom, x, y);
+    return await this.hasTileS2(6 as Face, zoom, x, y);
   }
 
   /**
@@ -178,7 +179,7 @@ export class S2TilesStore {
    */
   async getTileWM(zoom: number, x: number, y: number): Promise<Uint8Array | undefined> {
     await this.setup();
-    return await this.getTileS2(0, zoom, x, y);
+    return await this.getTileS2(6 as Face, zoom, x, y);
   }
 
   /**
@@ -223,7 +224,7 @@ export class S2TilesStore {
     y: number,
     data: Uint8Array<ArrayBuffer>,
   ): Promise<void> {
-    await this.putTile(0, zoom, x, y, data);
+    await this.putTile(6 as Face, zoom, x, y, data);
   }
 
   /**

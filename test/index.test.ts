@@ -26,7 +26,7 @@ test('S2Tiles - Buffer Writer - WM', async () => {
   await writer.commit({ metadata: true } as unknown as Metadata);
 
   const fileSize = await stat(tmpFile).then((s) => s.size);
-  expect(fileSize).toEqual(216_417);
+  expect(fileSize).toEqual(230_067);
 
   const reader = new S2TilesStore(tmpFile);
   const metadata = await reader.getMetadata();
